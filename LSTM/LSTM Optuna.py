@@ -82,11 +82,6 @@ def test(model, test_loader, criterion):
 # Define objective function for Optuna
 def objective(trial):
 
-    # Model fixed parameters
-    input_size = 5
-    output_size = 4
-    epochs = 10
-
     # Hyperparameter search space
     hidden_size = trial.suggest_int("hidden_size", 16, 128)
     num_layers = trial.suggest_int("num_layers", 1, 3)
@@ -104,6 +99,11 @@ def objective(trial):
     loss = test(model, valid_loader, criterion)
     return loss
 
+
+# Model fixed parameters
+input_size = 5
+output_size = 4
+epochs = 10
 
 # Create optuna study
 study = optuna.create_study(direction="minimize")
