@@ -81,6 +81,12 @@ def test(model, test_loader, criterion):
 
 # Define objective function for Optuna
 def objective(trial):
+
+    # Model fixed parameters
+    input_size = 5
+    output_size = 4
+    epochs = 10
+
     # Hyperparameter search space
     hidden_size = trial.suggest_int("hidden_size", 16, 128)
     num_layers = trial.suggest_int("num_layers", 1, 3)
@@ -92,15 +98,11 @@ def objective(trial):
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     # Train the model
-    train(model, train_loader, criterion, optimizer, epochs=5)
+    train(model, train_loader, criterion, optimizer, epochs=epochs)
 
     # Return the valid loss
     loss = test(model, valid_loader, criterion)
     return loss
-
-
-input_size = 5
-output_size = 4
 
 
 # Create optuna study
