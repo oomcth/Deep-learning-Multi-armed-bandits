@@ -121,13 +121,11 @@ best_optimizer = optim.Adam(best_model.parameters(),
 
 train(best_model, train_loader, Criterion, best_optimizer, epochs=10)
 
-# save the bset_model
+# save the best_model
 try:
     torch.save(best_model.state_dict(), "model.pth")
-    print("marche du premier coup")
 except:
     torch.save(best_model.state_dict(), "/model.pth")
-    print("marche du second coup")
 
 # return our test error
 print(test(best_model, test_loader, Criterion))
