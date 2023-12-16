@@ -1,12 +1,14 @@
 import torch
-from torch import Tensor, unbind, load, cat, stack, argmax, tensor, zeros, save
+from torch import Tensor, unbind, load, cat, stack, argmax, tensor, zeros, save, zeros_like
 import torch.nn as nn
-from torch.nn import Dropout, Linear, CrossEntropyLoss
+from torch.nn import Dropout, Linear, CrossEntropyLoss, L1Loss, MSELoss, ReLU
 import torch.nn.functional as F
 from torch.nn.modules.transformer import MultiheadAttention
 from torch.nn.init import xavier_uniform_
 from torch.utils.data import DataLoader
 from torch.optim import Adam
+from torch.linalg import norm
+from itertools import chain
 
 from numpy import mean
 import matplotlib.pyplot as plt
@@ -43,13 +45,13 @@ train_loader = DataLoader([[X_train[i], y_train[i]]
 class TransformerDecoderLayer(nn.Module):
 
     def __init__(self, d_model: int = 5, dim_emb_choice: int = 10,
-                 dim_emb_val: int = 4, dim_feedforward: int = 20,
+                 dim_emb_val: int = 4, dim_feedforward: int = 4,
                  dropout: float = 0, bias: bool = True, device=None,
                  dtype=None) -> None:
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
 
-        self.extracting_features = False
+        self.dim_feedforward = dim_feedforward
         self.d_model = d_model
         self.dim_emb = dim_emb_choice + dim_emb_val
         self.dim_emb_choice = dim_emb_choice
@@ -69,10 +71,10 @@ class TransformerDecoderLayer(nn.Module):
                                             bias=bias, **factory_kwargs)
 
         # Implementation of Feedforward model
-        self.linear1 = Linear(self.dim_emb, dim_feedforward, bias=bias,
+        self.linear1 = Linear(self.dim_emb, dim_feedforward*10, bias=bias,
                               **factory_kwargs)
 
-        self.linear2 = Linear(dim_feedforward, self.dim_emb, bias=bias,
+        self.linear2 = Linear(dim_feedforward*10, self.dim_emb, bias=bias,
                               **factory_kwargs)
 
         self.linear3 = Linear(self.dim_emb, 4)
@@ -87,6 +89,18 @@ class TransformerDecoderLayer(nn.Module):
             if p.dim() > 1:
                 p = xavier_uniform_(p)
 
+        self.extracting_features = False
+        self.L1Loss = L1Loss()
+        self.L2Loss = MSELoss()
+        enc = [(Linear(i*10, (i-1)*10), ReLU())
+               for i in range(self.dim_feedforward, 2, -1)]
+        enc = list(chain(*enc))
+        dec = [(Linear(i*10, (i+1)*10), ReLU())
+               for i in range(2, self.dim_feedforward, 1)]
+        dec = list(chain(*dec))
+        self.encoder = nn.Sequential(*enc)
+        self.decoder = nn.Sequential(*dec)
+
     def forward(
         self,
         x: Tensor,
@@ -99,13 +113,11 @@ class TransformerDecoderLayer(nn.Module):
         x = cat([choice, val], dim=2)
         x = x + pos
         x = x + self._sa_block(x)
-        x = x + self._ff_block(x)
+        ff_block, loss = self._ff_block(x)
+        x = x + ff_block
         x = self.linear3(x)
 
-        if self.extracting_features:
-            Autoencoder_loss = []
-            return x, Autoencoder_loss
-        return x, None
+        return x, loss
 
     # self-attention block
     def _sa_block(self, x: Tensor) -> Tensor:
@@ -116,8 +128,19 @@ class TransformerDecoderLayer(nn.Module):
 
     # feed forward block
     def _ff_block(self, x: Tensor) -> Tensor:
-        x = self.linear2(self.dropout2(F.relu(self.linear1(x))))
-        return self.dropout3(x)
+
+        activation = F.relu(self.linear1(x))
+        x = self.linear2(self.dropout2(activation))
+
+        if self.extracting_features:
+            features = self.encoder(activation)
+            out = self.decoder(features)
+
+            loss = (self.L2Loss(out, activation) +
+                    self.L1Loss(features, zeros_like(features)))
+
+            return self.dropout3(x), loss
+        return self.dropout3(x), None
 
 
 # creating model
