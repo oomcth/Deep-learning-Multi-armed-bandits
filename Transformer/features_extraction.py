@@ -1,17 +1,15 @@
 import torch
-from torch import Tensor
+from torch import Tensor, unbind, load, cat, stack, argmax, tensor, zeros, save
 import torch.nn as nn
-from torch.nn import Dropout, Linear
+from torch.nn import Dropout, Linear, CrossEntropyLoss
 import torch.nn.functional as F
-
-from torch.utils.data import DataLoader
 from torch.nn.modules.transformer import MultiheadAttention
 from torch.nn.init import xavier_uniform_
+from torch.utils.data import DataLoader
 from torch.optim import Adam
-from torch.nn import CrossEntropyLoss
+
 from numpy import mean
 import matplotlib.pyplot as plt
-import random
 from tqdm import tqdm
 
 # Globals
@@ -19,25 +17,26 @@ savedir = "Desktop/"
 
 
 # data preparation
-X_train = list(torch.unbind(torch.cat([torch.load(savedir + 'X_train.pt'),
-                                       torch.load(savedir + 'X_test.pt'),
-                                       torch.load(savedir + 'X_valid.pt')])))
-X_train = torch.stack(X_train)
+X_train = list(unbind(cat([load(savedir + 'X_train.pt'),
+                           load(savedir + 'X_test.pt'),
+                           load(savedir + 'X_valid.pt')])))
+X_train = stack(X_train)
 
 
-y_train = list(torch.unbind(torch.cat([torch.load(savedir + 'Y_train.pt'),
-                                       torch.load(savedir + 'Y_test.pt'),
-                                       torch.load(savedir + 'Y_valid.pt')])))
-y_train = torch.stack(y_train).unsqueeze(1)
-y_train = torch.cat([X_train[:, 1:, :-1], y_train[:X_train.size()[0]]], dim=1)
+y_train = list(unbind(cat([load(savedir + 'Y_train.pt'),
+                           load(savedir + 'Y_test.pt'),
+                           load(savedir + 'Y_valid.pt')])))
+y_train = stack(y_train).unsqueeze(1)
+y_train = cat([X_train[:, 1:, :-1], y_train[:X_train.size()[0]]], dim=1)
 
-positions = torch.argmax(X_train[:, :, :4], dim=2)
+positions = argmax(X_train[:, :, :4], dim=2)
 values = X_train[:, :, 4]
-X_train = torch.stack([positions, values], dim=2).long()
+X_train = stack([positions, values], dim=2).long()
 
 
 batch_size = 64
-train_loader = DataLoader([[X_train[i], y_train[i]] for i in range(len(X_train))],
+train_loader = DataLoader([[X_train[i], y_train[i]]
+                           for i in range(len(X_train))],
                           batch_size=batch_size, shuffle=True)
 
 
@@ -55,12 +54,12 @@ class TransformerDecoderLayer(nn.Module):
         self.dim_emb = dim_emb_choice + dim_emb_val
         self.dim_emb_choice = dim_emb_choice
         self.pos_emb = nn.Embedding(4, self.dim_emb)
-        self.pos = [torch.tensor(i) for i in range(4)]
+        self.pos = [tensor(i) for i in range(4)]
         self.choice_emb = nn.Embedding(4, dim_emb_choice)
         self.val_emb = nn.Embedding(100, dim_emb_val)
 
-        self.causal_attention = torch.zeros((d_model, d_model),
-                                            dtype=torch.float)
+        self.causal_attention = zeros((d_model, d_model),
+                                      dtype=torch.float)
         for i in range(d_model):
             for j in range(i + 1, d_model):
                 self.causal_attention[i, j] = float('-inf')
@@ -92,12 +91,12 @@ class TransformerDecoderLayer(nn.Module):
         self,
         x: Tensor,
     ):
-        pos = torch.stack([self.pos_emb(position) for position in self.pos])
+        pos = stack([self.pos_emb(position) for position in self.pos])
         pos = pos.unsqueeze(0).expand(x.size()[0], 4, self.dim_emb)
         choice = self.choice_emb(x[:, :, :-1]).squeeze(dim=2)
         val = self.val_emb(x[:, :, -1])
 
-        x = torch.cat([choice, val], dim=2)
+        x = cat([choice, val], dim=2)
         x = x + pos
         x = x + self._sa_block(x)
         x = x + self._ff_block(x)
@@ -147,7 +146,7 @@ def train():
             optimizer.step()
         losses.append(mean(running_loss))
         running_loss = []
-    torch.save(model, "model_TransfoDecoder.pth")
+    save(model, "model_TransfoDecoder.pth")
 
     plt.plot(losses)
     plt.show()
