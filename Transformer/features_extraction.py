@@ -1,13 +1,13 @@
 import torch
-from torch import Tensor, unbind, load, cat, stack, argmax, tensor, zeros, save, zeros_like
-import torch.nn as nn
+from torch import Tensor, unbind, load, cat, stack
+from torch import argmax, tensor, zeros, save, zeros_like
+from torch.nn import Module, Embedding, Sequential
 from torch.nn import Dropout, Linear, CrossEntropyLoss, L1Loss, MSELoss, ReLU
 import torch.nn.functional as F
 from torch.nn.modules.transformer import MultiheadAttention
 from torch.nn.init import xavier_uniform_
 from torch.utils.data import DataLoader
-from torch.optim import Adam
-from torch.linalg import norm
+from torch.optim import Adam, SparseAdam
 from itertools import chain
 
 from numpy import mean
@@ -35,30 +35,30 @@ positions = argmax(X_train[:, :, :4], dim=2)
 values = X_train[:, :, 4]
 X_train = stack([positions, values], dim=2).long()
 
-
 batch_size = 64
 train_loader = DataLoader([[X_train[i], y_train[i]]
                            for i in range(len(X_train))],
                           batch_size=batch_size, shuffle=True)
 
 
-class TransformerDecoderLayer(nn.Module):
+class TransformerDecoderLayer(Module):
 
-    def __init__(self, d_model: int = 5, dim_emb_choice: int = 10,
-                 dim_emb_val: int = 4, dim_feedforward: int = 4,
-                 dropout: float = 0, bias: bool = True, device=None,
-                 dtype=None) -> None:
+    def __init__(self, d_model: int = 4, dim_emb_choice: int = 10,
+                 dim_emb_val: int = 4, dim_feedforward: int = 2,
+                 num_features: int = 5, dropout: float = 0,
+                 bias: bool = True, device=None, dtype=None) -> None:
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
 
         self.dim_feedforward = dim_feedforward
+        self.num_features = num_features
         self.d_model = d_model
         self.dim_emb = dim_emb_choice + dim_emb_val
         self.dim_emb_choice = dim_emb_choice
-        self.pos_emb = nn.Embedding(4, self.dim_emb)
+        self.pos_emb = Embedding(4, self.dim_emb)
         self.pos = [tensor(i) for i in range(4)]
-        self.choice_emb = nn.Embedding(4, dim_emb_choice)
-        self.val_emb = nn.Embedding(100, dim_emb_val)
+        self.choice_emb = Embedding(4, dim_emb_choice)
+        self.val_emb = Embedding(100, dim_emb_val)
 
         self.causal_attention = zeros((d_model, d_model),
                                       dtype=torch.float)
@@ -92,14 +92,14 @@ class TransformerDecoderLayer(nn.Module):
         self.extracting_features = False
         self.L1Loss = L1Loss()
         self.L2Loss = MSELoss()
-        enc = [(Linear(i*10, (i-1)*10), ReLU())
-               for i in range(self.dim_feedforward, 2, -1)]
+        enc = [(Linear(i*10, (i+1)*10), ReLU())
+               for i in range(self.dim_feedforward, num_features, 1)]
         enc = list(chain(*enc))
-        dec = [(Linear(i*10, (i+1)*10), ReLU())
-               for i in range(2, self.dim_feedforward, 1)]
+        dec = [(Linear(i*10, (i-1)*10), ReLU())
+               for i in range(num_features, self.dim_feedforward, -1)]
         dec = list(chain(*dec))
-        self.encoder = nn.Sequential(*enc)
-        self.decoder = nn.Sequential(*dec)
+        self.encoder = Sequential(*enc)
+        self.decoder = Sequential(*dec)
 
     def forward(
         self,
@@ -137,8 +137,7 @@ class TransformerDecoderLayer(nn.Module):
             out = self.decoder(features)
 
             loss = (self.L2Loss(out, activation) +
-                    self.L1Loss(features, zeros_like(features)))
-
+                    4 * self.L1Loss(features, zeros_like(features)))
             return self.dropout3(x), loss
         return self.dropout3(x), None
 
@@ -147,15 +146,17 @@ class TransformerDecoderLayer(nn.Module):
 model = TransformerDecoderLayer()
 
 # training hyperparameters
-epochs = 50
+epochs = 5
 lr = 0.005
 optimizer = Adam(model.parameters(), lr=lr)
 criterion = CrossEntropyLoss()
 
 
-def train():
+def train() -> None:
     losses = []
 
+    model.extracting_features = False
+    print("training started")
     for epoch in tqdm(range(epochs)):
         running_loss = []
         for batch in train_loader:
@@ -179,3 +180,35 @@ train()
 
 model = TransformerDecoderLayer()
 model = torch.load("model_TransfoDecoder.pth")
+
+# feature extracting hyperparameters
+epochs = 5
+lr = 0.005
+to_optimize = list(model.encoder.parameters()) + list(model.decoder.parameters())
+optimizer = Adam(to_optimize, lr=lr)
+
+
+def extract() -> None:
+    losses = []
+
+    model.extracting_features = True
+    print("extraction started")
+    for epoch in tqdm(range(epochs)):
+        running_loss = []
+        for batch in train_loader:
+            (x, _) = batch
+            _, loss = model(x)
+
+            optimizer.zero_grad()
+            loss.backward()
+            running_loss.append(loss.item())
+            optimizer.step()
+        losses.append(mean(running_loss))
+        running_loss = []
+    save(model, "model_TransfoDecoder.pth")
+
+    plt.plot(losses)
+    plt.show()
+
+
+extract()
