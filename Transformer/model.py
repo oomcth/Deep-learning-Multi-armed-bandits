@@ -22,12 +22,12 @@ class TransformerDecoderLayer(Module):
         """
         d_model = sequence length
         dim_emb_choice = number of dimensions in which the choice is embedded.
-        dim_emb_val = number of dimensions in which the reward value is embedded.
+        dim_emb_val = number of dimensions in which the reward is embedded.
         dim_feedforward = number of neuron in the feedforward activation layer.
-        num_features = the encoder will encode the feedforward activation layer 
+        num_features = the encoder will encode the feedforward activation layer
         into a vector of dim 10*num_features.
-        dropout = % of chance of drop of a coordinate during training. It is set
-        to 0 by default as we don't use a test set.
+        dropout = % of chance of drop of a coordinate during training. It is
+        set to 0 by default as we don't use a test set.
         nb_head = number of activation head
         bias = set if our module have a bias
         device = try to set cuda
@@ -143,17 +143,16 @@ class TransformerDecoderLayer(Module):
     def _ff_block(self, x: Tensor) -> Tensor:
 
         activation = self.activation(self.linear1(x))
-
         x = self.linear2(self.dropout2(activation))
 
         # if we are trainnig the autoencoder
         if self.extracting_features:
-            features = self.encoder(activation)
+            features = self.encoder(activation[:, -1, :])
             out = self.decoder(features)
 
             # L2 loss for autoencoder effiscienscy and L1 for
             # enforcing sparsity
-            loss = (self.L2Loss(out, activation) +
+            loss = (self.L2Loss(out, activation[:, -1, :]) +
                     self.L1Loss(features, zeros_like(features)))
 
             return self.dropout3(x), loss
