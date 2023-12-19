@@ -154,7 +154,7 @@ class TransformerDecoderLayer(Module):
             # enforcing sparsity
 
             # It's cobbled together, it's ugly, it works
-
+            # If I just do L1 + L2, only L1 loss decreases
             if (self.L2Loss(out, activation[:, -1, :]) /
                self.L1Loss(self.features, zeros_like(self.features))) >= 10:
                 loss = self.L2Loss(out, activation[:, -1, :])
