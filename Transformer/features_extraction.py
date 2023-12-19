@@ -4,7 +4,7 @@ from torch import argmax
 from torch.nn import CrossEntropyLoss
 
 from torch.utils.data import DataLoader
-from torch.optim import Adam
+from torch.optim import AdamW
 
 import pickle
 
@@ -13,6 +13,7 @@ from utils import train, extract, accuray
 
 # Globals
 savedir = ""
+loadModel = False
 
 # Loading Data
 with open(savedir + "train_test_valid_data_dict.pkl", 'rb') as f:
@@ -45,32 +46,31 @@ model = TransformerDecoderLayer()
 # training hyperparameters
 epochs = 50
 lr = 0.002
-optimizer = Adam(model.parameters(), lr=lr)
+optimizer = AdamW(model.parameters(), lr=lr)
 criterion = CrossEntropyLoss()
 
 
-# pretraining (Pretraining is not optimal it helps with loss,
-# but decreases accuracy.)
-train(model, epochs, criterion, optimizer, train_loader, trainAll=True)
-# training
-train(model, epochs, criterion, optimizer, train_loader, trainAll=False)
-
-
-# load trained model
-model = TransformerDecoderLayer()
-model = torch.load("model_TransfoDecoder.pth")
+if not loadModel:
+    # pretraining
+    train(model, epochs, criterion, optimizer, train_loader, trainAll=True)
+    # training
+    train(model, epochs, criterion, optimizer, train_loader, trainAll=False)
+else:
+    # load trained model
+    model = TransformerDecoderLayer()
+    model = torch.load("model_TransfoDecoder.pth")
 
 
 # feature extracting hyperparameters
-epochs = 20
+epochs = 100
 lr = 0.001
 # parameters to optimize
 to_optimize = (list(model.encoder.parameters()) +
                list(model.decoder.parameters()))
-optimizer = Adam(to_optimize, lr=lr)
+optimizer = AdamW(to_optimize, lr=lr)
 
 # feature extracting/training
-extract(model, epochs, optimizer, train_loader)
+extract(model, epochs, optimizer, train_loader, echo=True)
 
 # print accuracy
 print(accuray(model, X_train, y_train))

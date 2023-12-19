@@ -25,7 +25,7 @@ class TransformerDecoderLayer(Module):
         dim_emb_val = number of dimensions in which the reward is embedded.
         dim_feedforward = number of neuron in the feedforward activation layer.
         num_features = the encoder will encode the feedforward activation layer
-        into a vector of dim 10*num_features.
+        into a vector of dim 4*num_features.
         dropout = % of chance of drop of a coordinate during training. It is
         set to 0 by default as we don't use a test set.
         nb_head = number of activation head
@@ -60,10 +60,10 @@ class TransformerDecoderLayer(Module):
                                             **factory_kwargs)
 
         # Implementation of Feedforward model
-        self.linear1 = Linear(self.dim_emb, dim_feedforward*10, bias=bias,
+        self.linear1 = Linear(self.dim_emb, dim_feedforward*4, bias=bias,
                               **factory_kwargs)
 
-        self.linear2 = Linear(dim_feedforward*10, self.dim_emb, bias=bias,
+        self.linear2 = Linear(dim_feedforward*4, self.dim_emb, bias=bias,
                               **factory_kwargs)
 
         # Feedforward activation
@@ -89,14 +89,14 @@ class TransformerDecoderLayer(Module):
         self.L2Loss = MSELoss()
 
         # implement the encoder
-        enc = [(Linear(i*10, (i+1)*10, **factory_kwargs),
+        enc = [(Linear(i*4, (i+1)*4, **factory_kwargs),
                 ReLU())
                for i in range(dim_feedforward, num_features, 1)]
         enc = list(chain(*enc))
         self.encoder = Sequential(*enc)
 
         # implement the decoder
-        dec = [(Linear(i*10, (i-1)*10, **factory_kwargs),
+        dec = [(Linear(i*4, (i-1)*4, **factory_kwargs),
                 ReLU())
                for i in range(num_features, dim_feedforward, -1)]
         dec = list(chain(*dec))
@@ -147,13 +147,19 @@ class TransformerDecoderLayer(Module):
 
         # if we are trainnig the autoencoder
         if self.extracting_features:
-            features = self.encoder(activation[:, -1, :])
-            out = self.decoder(features)
+            self.features = self.encoder(activation[:, -1, :])
+            out = self.decoder(self.features)
 
             # L2 loss for autoencoder effiscienscy and L1 for
             # enforcing sparsity
-            loss = (self.L2Loss(out, activation[:, -1, :]) +
-                    self.L1Loss(features, zeros_like(features)))
 
+            # It's cobbled together, it's ugly, it works
+
+            if (self.L2Loss(out, activation[:, -1, :]) /
+               self.L1Loss(self.features, zeros_like(self.features))) >= 10:
+                loss = self.L2Loss(out, activation[:, -1, :])
+            else:
+                loss = (10 * self.L2Loss(out, activation[:, -1, :]) +
+                        self.L1Loss(self.features, zeros_like(self.features)))
             return self.dropout3(x), loss
         return self.dropout3(x), None
