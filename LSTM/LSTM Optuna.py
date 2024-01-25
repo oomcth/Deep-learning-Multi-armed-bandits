@@ -1,22 +1,28 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import optuna
+import pickle
 
 
 # Globals
-savedir = "Desktop/"
+savedir = ""
 Criterion = nn.CrossEntropyLoss()
 
-# Creating the DataLoaders
-X_train = list(torch.unbind(torch.load(savedir + 'X_train.pt')))
-y_train = list(torch.unbind(torch.load(savedir + 'Y_train.pt')))
-X_test = list(torch.unbind(torch.load(savedir + 'X_test.pt')))
-y_test = list(torch.unbind(torch.load(savedir + 'y_test.pt')))
-X_valid = list(torch.unbind(torch.load(savedir + 'X_valid.pt')))
-y_valid = list(torch.unbind(torch.load(savedir + 'y_valid.pt')))
+# Loading Data
+with open(savedir + "train_test_valid_data_dict.pkl", 'rb') as f:
+
+    data = pickle.load(f)
+
+    train_, test_, valid_ = data['train'], data['test'], data['valid']
+    X_train = list(torch.unbind(train_[0].float()))
+    X_test = list(torch.unbind(test_[0].float()))
+    X_valid = list(torch.unbind(valid_[0].float()))
+    y_train = list(torch.unbind(train_[1].float()))
+    y_test = list(torch.unbind(test_[1].float()))
+    y_valid = list(torch.unbind(valid_[1].float()))
+
 
 batch_size = 64
 train_loader = DataLoader([[X_train[i], y_train[i]] for i in range(len(X_train))],
@@ -55,22 +61,23 @@ class LSTMModel(nn.Module):
 def train(model, train_loader, criterion, optimizer, epochs):
     model.train()
     for _ in range(epochs):
+        print("+1")
         for batch in train_loader:
             inputs, labels = batch
             optimizer.zero_grad()
             outputs = model(inputs)
-            loss = criterion(outputs, labels)
+            loss = criterion(outputs, labels[:, :, -1])
             loss.backward()
             optimizer.step()
 
 
 # Testing function
-def test(model, test_loader, criterion):
+def test(model, valid_loader, criterion):
     model.eval()
     best_loss = None
-    for inputs, labels in test_loader:
+    for inputs, labels in valid_loader:
         outputs = model(inputs)
-        loss = criterion(outputs, labels)
+        loss = criterion(outputs, labels[:, :, -1])
         Loss = loss.tolist()
         if best_loss is None:
             best_loss = Loss
@@ -103,11 +110,29 @@ def objective(trial):
 # Model fixed parameters
 input_size = 5
 output_size = 4
-epochs = 10
+epochs = 100
+
+# Train the model with the best hyperparameters
+best_model = LSTMModel(input_size, 41,
+                       3,
+                       output_size)
+best_optimizer = optim.Adam(best_model.parameters(),
+                            lr=1.4079547470404374e-05)
+train(best_model, train_loader, Criterion, best_optimizer, epochs=100)
+
+# save the best_model
+try:
+    torch.save(best_model.state_dict(), "model.pth")
+except:
+    torch.save(best_model.state_dict(), "/model.pth")
+
+# return our test error
+print(test(best_model, test_loader, Criterion))
+input()
 
 # Create optuna study
 study = optuna.create_study(direction="minimize")
-study.optimize(objective, n_trials=10)
+study.optimize(objective, n_trials=100)
 best_params = study.best_params
 print("Best Hyperparameters:", best_params)
 
