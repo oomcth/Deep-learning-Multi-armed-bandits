@@ -1,3 +1,8 @@
 # Deep-learning-Multi-armed-bandits
 
-Il faut ajouter le dossier simulations dispo sur https://osf.io/4cwme/
+A completer 
+
+
+There are 6 notebooks 
+preprocess : creates a shuffled csv of choice and rewards from raw choice data
+general model training and testing with full data : trains the general model with choice data 
