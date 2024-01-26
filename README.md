@@ -16,3 +16,13 @@ For the LSTM and explicit model experiments, the notebooks should be ran in this
 
 7) figures : figures of accuracy per person to compare models
 
+
+
+
+
+The transformer related code can be found in the Transformer dossier :
+
+ - model.py is the modified transformer model
+ - features_reader.py is a simple tool to visualize features
+ - utils.py is a set of usefull methods
+ - features_extraction.py trains the sparse autoencoder and the transformer
