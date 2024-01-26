@@ -1,11 +1,6 @@
 ipython==8.0.1
-keract==2.6.1
-Keras==2.2.4
 matplotlib==3.1.1
-music21==7.1.0
 numpy==1.16.3
 pandas==0.24.2
-pyaudio==0.2.11
-pygame==2.1.2
 scikit_learn==1.0.2
-tensorflow==1.13.1
+torch==2.1.2
