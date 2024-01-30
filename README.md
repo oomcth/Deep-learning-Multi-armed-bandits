@@ -1,5 +1,9 @@
 # Deep-learning-Multi-armed-bandits
 
+This projects reproduces and explores the methodology presented by Fintz, Osadchy & Hertz to predict and explain human decisions using deep learning (link below)
+https://doi.org/10.1038/s41598-022-08863-0
+
+
 For the LSTM and explicit model experiments, the notebooks should be ran in this order : 
 
 1) preprocess : creates a shuffled csv of choice and rewards from raw choice data
@@ -15,9 +19,6 @@ For the LSTM and explicit model experiments, the notebooks should be ran in this
 6) simulation comparisons : compare simulations of the 3 models, compute and plot the KL divergence
 
 7) figures : figures of accuracy per person to compare models
-
-
-
 
 
 The transformer related code can be found in the Transformer dossier :
