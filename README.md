@@ -1,6 +1,6 @@
 # Deep-learning-Multi-armed-bandits
 
-This projects reproduces and explores the methodology presented by Fintz, Osadchy & Hertz to predict and explain human decisions using deep learning (link below)
+This projects reproduces and explores the methodology presented by Fintz, Osadchy & Hertz to predict and explain human decisions using deep learning 
 https://doi.org/10.1038/s41598-022-08863-0
 
 
